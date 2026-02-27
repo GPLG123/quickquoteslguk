@@ -8,9 +8,21 @@
 body { font-family: Arial, sans-serif; margin: 20px; }
 input { margin: 5px; padding: 5px; width: 250px; }
 button { padding: 5px 10px; margin: 5px; }
-#map { height: 400px; margin-top: 20px; }
-table { border-collapse: collapse; margin-top: 10px; width: 100%; }     
-th, td { padding: 6px 10px; border: 1px solid #555; text-align: center; }
+#map { height: 600px; margin-top: 20px; position: relative; }
+#quoteTable {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: 300px;
+  background: rgba(255,255,255,0.95);
+  padding: 10px;
+  border: 1px solid #555;
+  overflow: auto;
+  font-size: 12px;
+  z-index: 1000;
+}
+#quoteTable table { width: 100%; border-collapse: collapse; }
+#quoteTable th, #quoteTable td { border: 1px solid #555; padding: 4px; text-align: center; }
 .highlight { background:#ffe6e6; }
 </style>
 </head>
@@ -23,8 +35,12 @@ th, td { padding: 6px 10px; border: 1px solid #555; text-align: center; }
 <input id="delivery" placeholder="Delivery postcode or address">
 <button onclick="calculateQuotes()">Calculate Quotes</button>
 
-<h3 id="result"></h3>
 <div id="map"></div>
+
+<div id="quoteTable">
+  <div id="summary"></div>
+  <div id="result">Enter addresses to calculate quotes.</div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -97,14 +113,24 @@ async function calculateQuotes(){
   L.polyline(coordsList, {color:'blue', weight:4, opacity:0.7}).addTo(map);
   map.fitBounds(coordsList);
 
-  // Calculate distances in miles
+  // Calculate distances and estimated time
   let segmentDistances = [];
+  let totalDistance = 0;
+  let totalTime = 0; // in minutes
+
   for(let i=0;i<coordsList.length-1;i++){
     const from = coordsList[i];
     const to = coordsList[i+1];
     const route = await axios.get(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`);
-    segmentDistances.push(route.data.routes[0].distance / 1609); // miles
+    const dist = route.data.routes[0].distance / 1609; // miles
+    const dur = route.data.routes[0].duration / 60; // minutes
+    segmentDistances.push(dist);
+    totalDistance += dist;
+    totalTime += dur;
   }
+
+  // Show summary
+  document.getElementById("summary").innerHTML = `<b>Total Distance:</b> ${totalDistance.toFixed(1)} miles<br><b>Estimated Driving Time:</b> ${Math.floor(totalTime)} min`;
 
   // Build cost table with minimum charges
   let html = `<table><tr><th>Vehicle</th><th>Cost Distance (£)</th><th>Cost Additional Stop (£)</th><th>Total Courier (£)</th><th>Customer Cost (£)</th></tr>`;
@@ -118,18 +144,18 @@ async function calculateQuotes(){
       if(i === 0) costDistance += cost;
       else if(i === 1){
         costDistance += cost;
-        if(pickups.length > 1) costAdditional += 40; // Additional stop fee
+        if(pickups.length > 1) costAdditional += 40;
       } else {
         costDistance += cost;
       }
     });
 
-    // Apply minimum charge rules
+    // Minimum charge rules
     let deliveryDist = segmentDistances[segmentDistances.length-1];
     let minCharge = 0;
 
     if(deliveryDist <= 10){
-      minCharge = 50; // Up to 10 miles, all vehicles
+      minCharge = 50;
     } else {
       switch(veh){
         case "SWB": case "MWB": case "LWB": case "XLWB": case "Luton": minCharge = 65; break;
