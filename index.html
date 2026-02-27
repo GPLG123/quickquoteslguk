@@ -1,76 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Quick Quotes UK - 2 Pickups Milk Run</title>
+
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  input { margin: 5px; padding: 5px; width: 250px; }
-  button { padding: 5px 10px; margin: 5px; }
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
 
-  /* Container vertical: tabel deasupra, harta dedesubt */
-  #quoteTable {
-    width: 700px; /* mai lat tabel */
-    max-height: 400px;
-    background: #fff;
-    padding: 15px;
-    border: 1px solid #555;
-    overflow-y: auto;
-    font-size: 18px; /* font mai mare */
-    margin-bottom: 15px;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
-  }
-  #quoteTable table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: inherit;
-  }
-  #quoteTable th, #quoteTable td {
-    border: 1px solid #555;
-    padding: 8px;
-    text-align: center;
-  }
-  #summary {
-    margin-bottom: 12px;
-    font-weight: bold;
-    font-size: 20px;
-  }
+.container {
+  width: 900px;
+  margin: 20px auto;
+}
 
-  #map {
-    height: 600px;
-    width: 700px; /* aliniat cu tabelul */
-    border: 1px solid #555;
-  }
+h2 {
+  margin-bottom: 10px;
+}
+
+input {
+  padding: 8px;
+  margin: 5px;
+  width: 240px;
+}
+
+button {
+  padding: 8px 14px;
+  margin: 5px;
+  cursor: pointer;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+button:hover {
+  background: #0056b3;
+}
+
+/* Styled cost table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+table th, table td {
+  border: 1px solid #444;
+  padding: 8px;
+  text-align: center;
+  font-size: 16px;
+}
+
+table th {
+  background: #f2f2f2;
+  font-weight: bold;
+}
+
+#summary {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+/* Map area */
+#map {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #444;
+  margin-top: 20px;
+}
 </style>
 </head>
 <body>
 
-<h2>🚐 Quick Quotes UK - 2 Pickups Milk Run</h2>
+<div class="container">
+  <h2>🚐 Quick Quotes UK - 2 Pickups Milk Run</h2>
 
-<div>
-  <input id="pickup1" placeholder="Pickup 1 postcode or address" />
-  <input id="pickup2" placeholder="Pickup 2 postcode or address (optional)" />
-  <input id="delivery" placeholder="Delivery postcode or address" />
-  <button onclick="calculateQuotes()">Calculate Quotes</button>
-</div>
+  <div>
+    <input id="pickup1" placeholder="Pickup 1 postcode or address">
+    <input id="pickup2" placeholder="Pickup 2 postcode or address (optional)">
+    <input id="delivery" placeholder="Delivery postcode or address">
+    <button onclick="calculateQuotes()">Calculate Quotes</button>
+  </div>
 
-<div id="quoteTable">
-  <div id="summary">Enter addresses to calculate quotes.</div>
+  <div id="summary">Enter details and click Calculate</div>
+
   <div id="result"></div>
 </div>
 
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
-let map = L.map('map').setView([51.5,-0.12],6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap'
+
+// --- Initialize map ---
+let map = L.map('map').setView([51.5, -0.12], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© OpenStreetMap contributors'
 }).addTo(map);
 
+// Vehicle rate table
 const vehicles = {
   "SWB": 1.1,
   "MWB": 1.155,
@@ -82,95 +120,122 @@ const vehicles = {
   "Arctic": 3.3
 };
 
-async function getCoords(address){
-  try{
+// Get map coordinates via Nominatim
+async function getCoords(address) {
+  try {
     let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
     let res = await axios.get(url);
-    if(res.data.length > 0) return [parseFloat(res.data[0].lat), parseFloat(res.data[0].lon)];
+    if (res.data.length > 0) return [parseFloat(res.data[0].lat), parseFloat(res.data[0].lon)];
     return null;
-  }catch(e){
+  } catch (e) {
     alert("Error fetching coordinates");
     return null;
   }
 }
 
-async function calculateQuotes(){
+// Main calculator
+async function calculateQuotes() {
+
   const pickups = [
     document.getElementById("pickup1").value,
     document.getElementById("pickup2").value
   ].filter(p => p);
+
   const delivery = document.getElementById("delivery").value;
 
-  if(pickups.length === 0 || !delivery){
-    alert("Enter at least 1 pickup and delivery");
+  if (pickups.length === 0 || !delivery) {
+    alert("Please enter at least one pickup and a delivery");
     return;
   }
 
+  // Fetch coordinates
   const coordsList = [];
-  for(const p of pickups){
+  for (let p of pickups) {
     const c = await getCoords(p);
-    if(!c){ alert(`Pickup not found: ${p}`); return; }
+    if (!c) { alert(`Location not found: ${p}`); return; }
     coordsList.push(c);
   }
+
   const deliveryCoords = await getCoords(delivery);
-  if(!deliveryCoords){ alert("Delivery address not found"); return; }
+  if (!deliveryCoords) { alert(`Location not found: ${delivery}`); return; }
   coordsList.push(deliveryCoords);
 
+  // Clear old map markers
   map.eachLayer(layer => {
-    if(layer instanceof L.Marker || layer instanceof L.Polyline) map.removeLayer(layer);
+    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+      map.removeLayer(layer);
+    }
   });
 
-  coordsList.forEach((c,i)=>{
-    let label = (i < pickups.length) ? `Pickup ${i+1}` : 'Delivery';
+  // Add markers
+  coordsList.forEach((c,i) => {
+    let label = (i < pickups.length ? `Pickup ${i+1}` : 'Delivery');
     L.marker(c).addTo(map).bindPopup(label);
   });
 
+  // Draw route line
   L.polyline(coordsList, {color:'blue', weight:4, opacity:0.7}).addTo(map);
   map.fitBounds(coordsList);
 
+  // Route distances + estimated times
   let segmentDistances = [];
   let totalDistance = 0;
   let totalTime = 0;
 
-  for(let i=0;i<coordsList.length-1;i++){
+  for (let i=0; i<coordsList.length-1; i++) {
     const from = coordsList[i];
-    const to = coordsList[i+1];
-    const route = await axios.get(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`);
-    const dist = route.data.routes[0].distance / 1609;
-    const dur = route.data.routes[0].duration / 60;
+    const to   = coordsList[i+1];
+
+    const route = await axios.get(
+      `https://router.project-osrm.org/route/v1/driving/`+
+      `${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`
+    );
+
+    const dist = route.data.routes[0].distance / 1609; // miles
+    const dur  = route.data.routes[0].duration / 60;   // minutes
+
     segmentDistances.push(dist);
     totalDistance += dist;
     totalTime += dur;
   }
 
+  // Show total distance & time
   document.getElementById("summary").innerHTML = 
-    `<b>Total Distance:</b> ${totalDistance.toFixed(1)} miles<br>` +
-    `<b>Estimated Driving Time:</b> ${Math.floor(totalTime)} minutes`;
+    `Total Distance: <b>${totalDistance.toFixed(1)} miles</b> &nbsp; | &nbsp; ` +
+    `Estimated Driving Time: <b>${Math.floor(totalTime)} min</b>`;
 
-  let html = `<table><tr><th>Vehicle</th><th>Cost Distance (£)</th><th>Cost Additional Stop (£)</th><th>Total Courier (£)</th><th>Customer Cost (£)</th></tr>`;
+  // Build results table
+  let html = `<table>
+    <tr>
+      <th>Vehicle</th>
+      <th>Cost Distance (£)</th>
+      <th>Cost Additional Stop (£)</th>
+      <th>Total Courier (£)</th>
+      <th>Customer Cost (£)</th>
+    </tr>`;
 
-  for(const [veh, rate] of Object.entries(vehicles)){
-    let costDistance = 0;
+  for (const [veh, rate] of Object.entries(vehicles)) {
+
+    let costDistance   = 0;
     let costAdditional = 0;
 
-    segmentDistances.forEach((dist,i)=>{
-      let cost = dist*rate;
-      if(i === 0) costDistance += cost;
-      else if(i === 1){
-        costDistance += cost;
-        if(pickups.length > 1) costAdditional += 40;
-      } else {
-        costDistance += cost;
+    segmentDistances.forEach((dist,i) => {
+      let c = dist * rate;
+      if      (i === 0) costDistance += c;
+      else if (i === 1) {
+        costDistance += c;
+        if (pickups.length > 1) costAdditional += 40;
       }
+      else costDistance += c;
     });
 
-    let deliveryDist = segmentDistances[segmentDistances.length-1];
-    let minCharge = 0;
+    let deliveryLeg = segmentDistances[segmentDistances.length-1];
 
-    if(deliveryDist <= 10){
-      minCharge = 50;
-    } else {
-      switch(veh){
+    // Minimum charge rules
+    let minCharge = 0;
+    if (deliveryLeg <= 10) minCharge = 50;
+    else {
+      switch (veh) {
         case "SWB": case "MWB": case "LWB": case "XLWB": case "Luton": minCharge = 65; break;
         case "7.5T": minCharge = 135; break;
         case "18T": minCharge = 145; break;
@@ -178,26 +243,28 @@ async function calculateQuotes(){
       }
     }
 
-    const deliveryCost = Math.max(deliveryDist*rate, minCharge);
-    costDistance = costDistance - (deliveryDist*rate) + deliveryCost;
+    const deliveryCost = Math.max(deliveryLeg * rate, minCharge);
 
-    const totalCourier = costDistance + costAdditional;
-    const customerCost = totalCourier * 1.05;
+    costDistance = costDistance - (deliveryLeg * rate) + deliveryCost;
 
-    html += `<tr>
-      <td>${veh}</td>
-      <td>£${costDistance.toFixed(2)}</td>
-      <td>£${costAdditional.toFixed(2)}</td>
-      <td>£${totalCourier.toFixed(2)}</td>
-      <td>£${customerCost.toFixed(2)}</td>
-    </tr>`;
+    const totalCourier   = costDistance + costAdditional;
+    const customerCost   = totalCourier * 1.05;
+
+    html += `
+      <tr>
+        <td>${veh}</td>
+        <td>£${costDistance.toFixed(2)}</td>
+        <td>£${costAdditional.toFixed(2)}</td>
+        <td>£${totalCourier.toFixed(2)}</td>
+        <td>£${customerCost.toFixed(2)}</td>
+      </tr>`;
   }
 
   html += `</table>`;
   document.getElementById("result").innerHTML = html;
 }
+
 </script>
 
 </body>
 </html>
--
