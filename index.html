@@ -1,50 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>Quick Quotes UK - 2 Pickups Milk Run</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; }
   input { margin: 5px; padding: 5px; width: 250px; }
   button { padding: 5px 10px; margin: 5px; }
-  #map { height: 600px; margin-top: 20px; position: relative; }
-  /* Container pentru tabel și sumar, poziționat peste hartă în stânga sus */
   #quoteTable {
     position: absolute;
     top: 10px;
     left: 10px;
-    max-width: 320px;
+    width: 480px; /* 320 * 1.5 = 480 */
     max-height: 80vh;
     background: rgba(255,255,255,0.95);
-    padding: 10px;
+    padding: 15px; /* mărit puțin padding-ul */
     border: 1px solid #555;
     overflow-y: auto;
-    font-size: 13px;
+    font-size: 20px; /* font mărit cu 50% (13px * 1.5 ~ 20px) */
     box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
     z-index: 1000;
   }
-  #quoteTable table { width: 100%; border-collapse: collapse; }
-  #quoteTable th, #quoteTable td { border: 1px solid #555; padding: 6px; text-align: center; }
-  #summary { margin-bottom: 10px; font-weight: bold; font-size: 14px; }
-  .highlight { background:#ffe6e6; }
+  #quoteTable table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    font-size: inherit; /* să ia fontul mărit */
+  }
+  #quoteTable th, #quoteTable td { 
+    border: 1px solid #555; 
+    padding: 9px; /* 6px * 1.5 = 9px */
+    text-align: center; 
+  }
+  #summary { 
+    margin-bottom: 15px; 
+    font-weight: bold; 
+    font-size: 22px; /* puțin mai mare */
+  }
+  #map {
+    height: 600px;
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
 
 <h2>🚐 Quick Quotes UK - 2 Pickups Milk Run</h2>
 
-<input id="pickup1" placeholder="Pickup 1 postcode or address">
-<input id="pickup2" placeholder="Pickup 2 postcode or address (optional)">
-<input id="delivery" placeholder="Delivery postcode or address">
-<button onclick="calculateQuotes()">Calculate Quotes</button>
-
-<div id="map">
-  <div id="quoteTable">
-    <div id="summary">Enter addresses to calculate quotes.</div>
-    <div id="result"></div>
-  </div>
+<div>
+  <input id="pickup1" placeholder="Pickup 1 postcode or address" />
+  <input id="pickup2" placeholder="Pickup 2 postcode or address (optional)" />
+  <input id="delivery" placeholder="Delivery postcode or address" />
+  <button onclick="calculateQuotes()">Calculate Quotes</button>
 </div>
+
+<div id="quoteTable">
+  <div id="summary">Enter addresses to calculate quotes.</div>
+  <div id="result"></div>
+</div>
+
+<div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -66,7 +81,6 @@ const vehicles = {
   "Arctic": 3.3
 };
 
-// Get coordinates from Nominatim API
 async function getCoords(address){
   try{
     let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
@@ -79,7 +93,6 @@ async function getCoords(address){
   }
 }
 
-// Calculate quotes and update map/table
 async function calculateQuotes(){
   const pickups = [
     document.getElementById("pickup1").value,
@@ -102,43 +115,37 @@ async function calculateQuotes(){
   if(!deliveryCoords){ alert("Delivery address not found"); return; }
   coordsList.push(deliveryCoords);
 
-  // Remove old markers and polylines
   map.eachLayer(layer => {
     if(layer instanceof L.Marker || layer instanceof L.Polyline) map.removeLayer(layer);
   });
 
-  // Add new markers with popup
   coordsList.forEach((c,i)=>{
     let label = (i < pickups.length) ? `Pickup ${i+1}` : 'Delivery';
     L.marker(c).addTo(map).bindPopup(label);
   });
 
-  // Draw route polyline
   L.polyline(coordsList, {color:'blue', weight:4, opacity:0.7}).addTo(map);
   map.fitBounds(coordsList);
 
-  // Calculate segment distances and total driving time
   let segmentDistances = [];
   let totalDistance = 0;
-  let totalTime = 0; // minutes
+  let totalTime = 0;
 
   for(let i=0;i<coordsList.length-1;i++){
     const from = coordsList[i];
     const to = coordsList[i+1];
     const route = await axios.get(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=false`);
-    const dist = route.data.routes[0].distance / 1609; // miles
-    const dur = route.data.routes[0].duration / 60;   // minutes
+    const dist = route.data.routes[0].distance / 1609;
+    const dur = route.data.routes[0].duration / 60;
     segmentDistances.push(dist);
     totalDistance += dist;
     totalTime += dur;
   }
 
-  // Update summary with total distance and estimated time
   document.getElementById("summary").innerHTML = 
     `<b>Total Distance:</b> ${totalDistance.toFixed(1)} miles<br>` +
     `<b>Estimated Driving Time:</b> ${Math.floor(totalTime)} minutes`;
 
-  // Build cost table with minimum charges
   let html = `<table><tr><th>Vehicle</th><th>Cost Distance (£)</th><th>Cost Additional Stop (£)</th><th>Total Courier (£)</th><th>Customer Cost (£)</th></tr>`;
 
   for(const [veh, rate] of Object.entries(vehicles)){
@@ -156,7 +163,6 @@ async function calculateQuotes(){
       }
     });
 
-    // Apply minimum charge rules
     let deliveryDist = segmentDistances[segmentDistances.length-1];
     let minCharge = 0;
 
